@@ -1,0 +1,145 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  HR
+  EMPLOYEE
+}
+
+enum SkillCategory {
+  LANGUAGE
+  FRAMEWORK
+  PLATFORM
+  TOOL
+  DOMAIN
+}
+
+enum Proficiency {
+  NOVICE
+  INTERMEDIATE
+  EXPERT
+}
+
+enum IngestionStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  password  String
+  name      String
+  role      Role     @default(EMPLOYEE)
+  createdAt DateTime @default(now())
+
+  resetToken         String?
+  resetTokenExpiry   DateTime?
+
+  profile            EmployeeProfile?
+  ingestions         ProfileIngestion[]  @relation("UserIngestions")
+  reviewedIngestions ProfileIngestion[]  @relation("ReviewedIngestions")
+  resume             Resume?
+  notifications      Notification[]
+  auditLogs          AuditLog[]
+}
+
+model EmployeeProfile {
+  id             String   @id @default(cuid())
+  userId         String   @unique
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  bio            String?
+  department     String?
+  location       String?
+  yearsTotal     Int?
+  linkedIn       String?
+  phone          String?
+  currentCompany String?
+  noticePeriod   String?
+  education      String?
+  github         String?
+  githubRepo     String?
+  updatedAt      DateTime @updatedAt
+
+  skills   Skill[]
+  projects Project[]
+  resume   Resume?
+}
+
+model Skill {
+  id          String          @id @default(cuid())
+  profileId   String
+  profile     EmployeeProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  name        String
+  category    SkillCategory
+  proficiency Proficiency
+  yearsExp    Float?
+}
+
+model Project {
+  id          String          @id @default(cuid())
+  profileId   String
+  profile     EmployeeProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  name        String
+  description String?
+  techStack   String[]
+  role        String?
+  duration    String?
+}
+
+model Resume {
+  id           String          @id @default(cuid())
+  userId       String          @unique
+  user         User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  profileId    String          @unique
+  profile      EmployeeProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  originalName String
+  storedName   String
+  filePath     String
+  fileSize     Int
+  mimeType     String
+  uploadedAt   DateTime        @default(now())
+  updatedAt    DateTime        @updatedAt
+}
+
+model ProfileIngestion {
+  id           String          @id @default(cuid())
+  userId       String
+  user         User            @relation("UserIngestions", fields: [userId], references: [id], onDelete: Cascade)
+  status       IngestionStatus @default(PENDING)
+  rawText      String          @db.Text
+  aiResponse   Json?
+  reviewedById String?
+  reviewedBy   User?           @relation("ReviewedIngestions", fields: [reviewedById], references: [id])
+  reviewNotes  String?
+  createdAt    DateTime        @default(now())
+  updatedAt    DateTime        @updatedAt
+}
+
+model Notification {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title     String
+  message   String
+  read      Boolean  @default(false)
+  createdAt DateTime @default(now())
+}
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  action    String
+  entity    String
+  entityId  String?
+  metadata  Json?
+  createdAt DateTime @default(now())
+}
