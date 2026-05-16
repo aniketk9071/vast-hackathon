@@ -1,0 +1,68 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: skillshub-postgres
+    environment:
+      POSTGRES_USER: skillshub
+      POSTGRES_PASSWORD: skillshub123
+      POSTGRES_DB: skillshub
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U skillshub -d skillshub"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+    networks:
+      - skillshub-net
+
+  db-setup:
+    build:
+      context: .
+      target: migrator
+    container_name: skillshub-db-setup
+    environment:
+      DATABASE_URL: postgresql://skillshub:skillshub123@postgres:5432/skillshub
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+    networks:
+      - skillshub-net
+
+  app:
+    build:
+      context: .
+      target: runner
+    container_name: skillshub-app
+    ports:
+      - "3000:3000"
+    environment:
+      DATABASE_URL: postgresql://skillshub:skillshub123@postgres:5432/skillshub
+      NEXTAUTH_SECRET: ${NEXTAUTH_SECRET:-changeme-generate-with-openssl-rand-base64-32}
+      NEXTAUTH_URL: http://localhost:3000
+      OLLAMA_HOST: http://host.docker.internal:11434
+      OLLAMA_MODEL: ${OLLAMA_MODEL:-llama3.2}
+      GITHUB_TOKEN: <add github secrets here>
+      UPLOAD_DIR: /data/uploads/resumes
+    volumes:
+      - uploads_data:/data/uploads/resumes
+    depends_on:
+      db-setup:
+        condition: service_completed_successfully
+    restart: unless-stopped
+    networks:
+      - skillshub-net
+
+volumes:
+  postgres_data:
+    name: skillshub-postgres-data
+  uploads_data:
+    name: skillshub-uploads-data
+
+networks:
+  skillshub-net:
+    driver: bridge
